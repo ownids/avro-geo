@@ -1,0 +1,59 @@
+name: build-geo
+
+# Собирает МИНИМАЛЬНЫЕ geo-файлы для Happ:
+#   geoip.dat   — только ru + private (~1 MB вместо 17 MB)
+#   geosite.dat — только private, category-ads-all, apple, microsoft, steam
+#                 (~2-3 MB вместо 10 MB; РУ-домены мы вшиваем в сам конфиг,
+#                  поэтому огромный category-ru тут НЕ нужен)
+# Публикует их в ветку `release`, откуда их раздаёт jsdelivr.
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # каждый понедельник 03:00 UTC — держим свежими
+  workflow_dispatch:       # + кнопка «Run workflow» вручную
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build minimal geoip (ru + private)
+        run: |
+          git clone --depth 1 https://github.com/v2fly/geoip geoip-src
+          cp geoip-config.json geoip-src/config.json
+          cd geoip-src
+          go run ./ -c config.json
+          ls -la output
+          cp output/geoip.dat "$GITHUB_WORKSPACE/geoip.dat"
+
+      - name: Build minimal geosite (private, ads, apple, microsoft, steam)
+        run: |
+          git clone --depth 1 https://github.com/v2fly/domain-list-community dlc-src
+          cd dlc-src
+          go run ./ --exportlists=private,category-ads-all,apple,microsoft,steam --outputname=geosite.dat
+          ls -la geosite.dat
+          cp geosite.dat "$GITHUB_WORKSPACE/geosite.dat"
+
+      - name: Publish to release branch
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          echo "=== итоговые размеры ===" && du -h geoip.dat geosite.dat
+          mkdir -p publish && cp geoip.dat geosite.dat publish/
+          cd publish
+          git init -q
+          git config user.name "geo-bot"
+          git config user.email "geo-bot@users.noreply.github.com"
+          git checkout -q -b release
+          git add .
+          git commit -q -m "geo update $(date -u +%F_%T)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" release
