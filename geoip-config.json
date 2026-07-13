@@ -1,0 +1,11 @@
+{
+  "input": [
+    { "type": "v2rayGeoIPDat", "action": "add",
+      "args": { "uri": "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat" } },
+    { "type": "private", "action": "add" }
+  ],
+  "output": [
+    { "type": "v2rayGeoIPDat", "action": "output",
+      "args": { "outputDir": "./output", "outputName": "geoip.dat", "wantedList": ["ru", "private"] } }
+  ]
+}
